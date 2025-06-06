@@ -21,58 +21,51 @@ public class OpenProductController {
 	private final CurrencyClient currencyClient;
 	private final CacheManager cacheManager;
 
-	public OpenProductController(ProductRepository repository, CurrencyClient currencyClient, CacheManager cacheManager) {
+	public OpenProductController(ProductRepository repository, CurrencyClient currencyClient,
+			CacheManager cacheManager) {
 		super();
 		this.repository = repository;
 		this.currencyClient = currencyClient;
-        this.cacheManager = cacheManager;
-    }
+		this.cacheManager = cacheManager;
+	}
 
 	@Value("${server.port}")
 	private int serverPort;
 
 	@GetMapping("/{idProduct}/{targetCurrency}")
-	public ResponseEntity<ProductEntity> getProduct(
-			@PathVariable Long idProduct,
-			@PathVariable String targetCurrency
-	) throws Exception {
+	public ResponseEntity<ProductEntity> getProduct(@PathVariable Long idProduct, @PathVariable String targetCurrency)
+			throws Exception {
+
 		targetCurrency = targetCurrency.toUpperCase();
 		String nameCache = "Product";
-		String KeyCache = idProduct + targetCurrency;
+		String keyCache = idProduct + targetCurrency;
 
-
-		ProductEntity product = cacheManager.getCache(nameCache).get(KeyCache, ProductEntity.class);
+		ProductEntity product = cacheManager.getCache(nameCache).get(keyCache, ProductEntity.class);
 
 		if (product == null) {
-
-
-			ProductEntity product1 = repository.findById(idProduct)
-					.orElseThrow(() -> new Exception("Product not found"));
+			product = repository.findById(idProduct).orElseThrow(() -> new Exception("Product not found"));
 
 			product.setEnviroment("Product-service running on Port: " + serverPort);
 
-			if (targetCurrency.equals(product.getCurrency()))
+			if (product.getCurrency().equals(targetCurrency)) {
 				product.setConvertedPrice(product.getPrice());
-			else {
-
-				CurrencyResponse currency = currencyClient.getCurrency(product.getPrice(), product.getCurrency(), targetCurrency);
+			} else {
+				CurrencyResponse currency = currencyClient.getCurrency(product.getPrice(), product.getCurrency(),
+						targetCurrency);
 				if (currency != null) {
 					product.setConvertedPrice(currency.getConvertedValue());
 					product.setEnviroment(product.getEnviroment() + " - " + currency.getEnviroment());
-
-					cacheManager.getCache(nameCache).put(KeyCache, product);
-
+					
+					cacheManager.getCache(nameCache).put(keyCache, product);
 				} else {
 					product.setConvertedPrice(-1);
-					product.setEnviroment(product.getEnviroment() + " - Currency Unavailable");
+					product.setEnviroment(product.getEnviroment() + " - Currency unavalaible");
 				}
-
 			}
-		}else{
-			product.setEnviroment("Product-service running on Port: " + serverPort + "DataSource: cache ");
-
+			
+		} else {
+			product.setEnviroment("Product-service running on Port: " + serverPort + " - DataSource: cache" );
 		}
-
 		return ResponseEntity.ok(product);
 	}
 
